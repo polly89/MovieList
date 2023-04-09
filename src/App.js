@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import Auth from './components/auth.js';
 import { db, auth, storage } from './config/firebase';
 import { getDocs, collection, addDoc, deleteDoc, doc, updateDoc } from 'firebase/firestore';
-import { ref, uploadBytes } from 'firebase/storage';
+import { ref, uploadBytes, listAll, getDownloadURL } from 'firebase/storage';
 
 function App() {
   const [movieList, setMovieList] = useState([])
@@ -17,6 +17,7 @@ function App() {
 
   //File Upload state
   const [fileUpload, setFileUpload] = useState(null)
+  const [fileList, setFileList]= useState([])
 
   const moviesCollectionRef = collection(db, 'movies')
   
@@ -34,6 +35,7 @@ function App() {
           console.error(err)
         }
     };
+
   useEffect(()=> {
   getMovieList();
   }, [])
@@ -61,16 +63,32 @@ function App() {
       await updateDoc(movieDoc, {title: updatedTitle})
   }
 
+  const fileListRef = ref(storage, 'projectFiles/');
   const uploadFile = async () => {
     if(!fileUpload) return;
     const filesFolderRef = ref(storage, `projectFiles/${fileUpload.name}`);
     try {
-      await uploadBytes(filesFolderRef, fileUpload)
+      await uploadBytes(filesFolderRef, fileUpload).then((snapshot)=>{
+        getDownloadURL(snapshot.ref).then((url)=>{
+        setFileList((prev)=>[...prev, url])
+        })
+        
+      })
+      
     } catch (err){
       console.error(err)
     }
-    
   }
+  useEffect(()=>{
+    listAll(fileListRef).then((res)=> {
+      res.items.forEach((item)=>{
+        getDownloadURL(item).then((url)=> {
+          setFileList((prev)=>[...prev, url])
+        })
+      })
+    })
+  }, []);
+
   return (
     <div>
       <div>
@@ -113,6 +131,10 @@ function App() {
         onChange={(e)=> setFileUpload(e.target.files[0])}
         />
         <button onClick={uploadFile}>Upload File</button>
+      </div>
+      <div>{fileList.map((url)=>{
+        return <audio controls src={url} alt='files'/>
+      })}
       </div>
     </div>
   );
